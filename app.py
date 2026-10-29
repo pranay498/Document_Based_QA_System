@@ -1,48 +1,75 @@
-# app.py
-import streamlit as st
-import os
-from dotenv import load_dotenv
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
-from langchain_community.vectorstores import FAISS
-from langchain_core.prompts import PromptTemplate
-from langchain_community.document_loaders import TextLoader
-import asyncio
-import tempfile
-from langchain_core.runnables import (
-    RunnableParallel,
-    RunnableLambda,
-    RunnablePassthrough,
-)
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.messages import (
-    AIMessage,
-    HumanMessage,
-    SystemMessage,
-)
-from langchain_google_genai import ChatGoogleGenerativeAI
-from datetime import datetime
-import time
-from langchain_community.document_loaders import PyPDFLoader
-
-# Constants
-CHUNK_SIZE = 1000
-CHUNK_OVERLAP = 100
-EMBEDDING_MODEL = "models/gemini-embedding-001"
-RETRIEVER_K = 4
-DEFAULT_SYSTEM_MESSAGE = """
-You are Document RAG Assistant 📄🤖. 
-Your role is to help users understand and explore the content of uploaded documents.
-
-Follow these rules:
-1. Always prioritize the document context when answering questions.
-2. If the answer is not in the document, clearly say you don't know.
-3. Keep responses friendly, clear, and concise.
+"""
+College FAQ Assistant
+=============================================================================
+A Retrieval-Augmented Generation (RAG) chatbot designed for college websites.
+Answers student, applicant, and parent questions based strictly on official
+college documents (PDF/TXT) using LangChain, Google Gemini, and FAISS.
+=============================================================================
 """
 
-# Load environment variables
+import os
+import time
+import asyncio
+import tempfile
+from datetime import datetime
+import streamlit as st
+from dotenv import load_dotenv
+
+# LangChain components for the RAG architecture
+from langchain_community.document_loaders import PyPDFLoader, TextLoader
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
+from langchain_community.vectorstores import FAISS
+from langchain_core.prompts import PromptTemplate
+from langchain_core.output_parsers import StrOutputParser
+
+# ---------------------------------------------------------------------------
+# Project Constants & Configuration
+# ---------------------------------------------------------------------------
+CHUNK_SIZE = 1000            # Size of each text chunk (characters)
+CHUNK_OVERLAP = 100          # Overlap between adjacent chunks for context continuity
+RETRIEVER_K = 4              # Number of top relevant chunks to retrieve
+EMBEDDING_MODEL = "models/gemini-embedding-001"
+DEFAULT_SAMPLE_DOC = os.path.join(os.path.dirname(__file__), "data", "college_faq_handbook.txt")
+
+# Grounded College FAQ Prompt Template to prevent hallucinations
+COLLEGE_QA_PROMPT = PromptTemplate(
+    template="""You are the official College FAQ Assistant for students, applicants, and parents.
+Answer the student's question strictly using ONLY the factual information found in the College Document Context below.
+
+College Document Context:
+\"\"\"
+{context}
+\"\"\"
+
+Student Question: {question}
+
+Strict Instructions:
+1. Answer ONLY using the facts stated in the context above.
+2. If the context does not contain the answer, reply EXACTLY with:
+   "I couldn't find this information in the available college documents."
+3. Do NOT make up, assume, or infer any dates, numbers, fees, or policies that are not explicitly stated.
+4. Keep answers friendly, accurate, and structured (use bullet points for lists like fees, eligibility criteria, or required documents).
+
+Answer:""",
+    input_variables=["context", "question"],
+)
+
+SUGGESTED_QUESTIONS = [
+    "What is the admission process?",
+    "What courses are available?",
+    "What is the fee structure?",
+    "What is the eligibility criteria?",
+    "What documents are required for admission?",
+    "What are the placement statistics?",
+    "When do examinations start?",
+    "What are the college timings?",
+]
+
+# Load environment variables (.env file)
 load_dotenv()
 
+# Setup event loop for async LangChain operations if not present
 try:
     asyncio.get_running_loop()
 except RuntimeError:
@@ -50,108 +77,132 @@ except RuntimeError:
     asyncio.set_event_loop(loop)
 
 
-# Initialize session state
+# ---------------------------------------------------------------------------
+# Session State Management
+# ---------------------------------------------------------------------------
 def init_session_state():
-    """Initialize all session state variables"""
+    """Initializes persistent session state variables for chat and documents."""
     if "messages" not in st.session_state:
-        st.session_state.messages = [SystemMessage(content=DEFAULT_SYSTEM_MESSAGE)]
-    if "chat_history" not in st.session_state:
-        st.session_state.chat_history = []
+        st.session_state.messages = [
+            {
+                "role": "assistant",
+                "content": (
+                    "👋 Welcome to the **College FAQ Assistant**! "
+                    "I can answer your questions about admissions, courses, fees, "
+                    "examinations, placements, and campus life using official college documents.\n\n"
+                    "👉 Load the sample handbook or upload your own college PDF/TXT to get started!"
+                ),
+                "sources": [],
+            }
+        ]
+    if "retriever" not in st.session_state:
+        st.session_state.retriever = None
+    if "document_name" not in st.session_state:
+        st.session_state.document_name = None
     if "api_key" not in st.session_state:
         st.session_state.api_key = os.getenv("GOOGLE_API_KEY", "")
-    # if "current_video_id" not in st.session_state:
-    # st.session_state.current_video_id = None
+    if "pending_prompt" not in st.session_state:
+        st.session_state.pending_prompt = None
+    if "model" not in st.session_state:
+        st.session_state.model = "gemini-3.5-flash"
 
 
+# ---------------------------------------------------------------------------
+# UI Page Setup & Styling
+# ---------------------------------------------------------------------------
 def configure_page():
     st.set_page_config(
-        page_title="Document RAG Chat",
-        page_icon="📄",
+        page_title="College FAQ Assistant",
+        page_icon="🎓",
         layout="centered",
     )
 
-    st.title("📄 Document RAG Assistant")
-    st.markdown("### Chat with your documents using AI")
-
-
-def center_app():
     st.markdown(
         """
         <style>
-        /* Center the main content */
         .block-container {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            # text-align: center;
-            max-width: 800px; /* prevent content from stretching too wide */
+            max-width: 860px;
+            padding-top: 3.5rem;
+            padding-bottom: 3rem;
             margin: auto;
         }
-
-        #transform-any-you-tube-video-into-an-interactive-conversation,#you-tube-x-rag-assistant{
-        text-align:center;
+        .campus-badge-container {
+            text-align: center;
+            margin-bottom: 0.5rem;
         }
-
-        /* Center text inputs and buttons */
-        .stTextInput, .stButton {
-            width: 100% !important;
-            # max-width: 500px;
-            margin: auto;
+        .campus-badge {
+            display: inline-block;
+            background-color: #4F46E5;
+            color: #FFFFFF !important;
+            padding: 0.35rem 0.95rem;
+            border-radius: 9999px;
+            font-size: 0.78rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            box-shadow: 0 2px 8px rgba(79, 70, 229, 0.4);
         }
-
-        @media (max-width: 768px) {
-                .stVerticalBlock{
-                align-items:center;
-                }
-            }
-        
+        h1 {
+            text-align: center !important;
+            padding-top: 0 !important;
+            margin-bottom: 0.3rem !important;
+        }
+        .header-subtitle {
+            text-align: center;
+            font-size: 1.05rem;
+            opacity: 0.85;
+            margin-bottom: 1.5rem;
+        }
+        .stButton>button {
+            border-radius: 8px;
+            transition: all 0.2s ease-in-out;
+        }
         </style>
+
+        <div class="campus-badge-container">
+            <span class="campus-badge">Campus AI Services</span>
+        </div>
         """,
         unsafe_allow_html=True,
     )
 
-
-def handle_new_document_button():
-    if st.sidebar.button("🔄 New Document", use_container_width=True):
-        # Clear document-related session state
-        if "retriever" in st.session_state:
-            del st.session_state["retriever"]
-        if "document_name" in st.session_state:
-            del st.session_state["document_name"]
-
-        st.session_state.messages = [SystemMessage(content=DEFAULT_SYSTEM_MESSAGE)]
-        st.success("🔄 Ready for new document!")
-        time.sleep(1)
-        st.rerun()
+    st.title("🎓 College FAQ Assistant")
+    st.markdown(
+        '<p class="header-subtitle">Ask questions about admissions, courses, fees, examinations, placements and other college information.</p>',
+        unsafe_allow_html=True,
+    )
 
 
+# ---------------------------------------------------------------------------
+# Sidebar Configuration & Controls
+# ---------------------------------------------------------------------------
 def handle_sidebar():
-    # Sidebar for API key
-    st.sidebar.header("🔑 Configuration")
+    st.sidebar.header("🎓 Portal Configuration")
 
-    api_key = st.sidebar.text_input(
-        "Your Google Gemini API Key",
+    # API Key Input
+    api_key_input = st.sidebar.text_input(
+        "Google Gemini API Key",
         type="password",
-        placeholder="Enter your API key...",
-        help="Your key is kept only in your current browser session.",
+        placeholder="Enter your Gemini API key...",
+        help="Reads from .env by default. Enter here to override for this session.",
         value=st.session_state.get("api_key", ""),
     )
-    if api_key:
-        clean_key = api_key.strip()
+    if api_key_input:
+        clean_key = api_key_input.strip()
         st.session_state.api_key = clean_key
         os.environ["GOOGLE_API_KEY"] = clean_key
         if len(clean_key) < 15:
-            st.sidebar.error("⚠️ This API key looks too short. Please check it.")
+            st.sidebar.error("⚠️ API key looks too short.")
         else:
-            st.sidebar.success("✅ API key set for this session")
+            st.sidebar.success("✅ API key active")
     else:
-        st.sidebar.info("💡 Enter your API key to start chatting")
+        st.sidebar.info("💡 Enter your Gemini API key to chat")
 
     st.sidebar.divider()
 
+    # Model Selection
     selected_model = st.sidebar.selectbox(
-        "Generation Models",
+        "Gemini Generation Model",
         [
             "gemini-3.5-flash",
             "gemini-3.1-flash-lite",
@@ -161,290 +212,347 @@ def handle_sidebar():
             "gemini-pro-latest",
         ],
         index=0,
-        help="Choose the Gemini model for generation",
+        help="Select the Gemini model for generating student answers.",
     )
-
     st.session_state.model = selected_model
 
     st.sidebar.divider()
+    st.sidebar.subheader("📊 Knowledge Base Status")
+    doc_loaded = st.session_state.get("retriever") is not None
+    current_doc = st.session_state.get("document_name", "None")
 
-    st.sidebar.subheader("💬 Chat Controls")
-
-    col1, col2 = st.sidebar.columns(2)
-    with col1:
-        if st.button("🗑️ Clear Chat", use_container_width=True):
-            st.session_state.messages = [SystemMessage(content=DEFAULT_SYSTEM_MESSAGE)]
-            st.rerun()
-
-    with col2:
-        if st.button("🔄 Clear Cache", use_container_width=True):
-            st.cache_data.clear()
-            st.cache_resource.clear()
-            st.success("Cache cleared!")
-
-    handle_new_document_button()
+    if doc_loaded:
+        st.sidebar.success(f"📄 **Active:** `{current_doc}`")
+    else:
+        st.sidebar.warning("⚠️ No document indexed yet")
 
     st.sidebar.divider()
-    st.sidebar.subheader("📊 Session Info")
-
-    message_count = len(st.session_state.messages) - 1  # Exclude system message
-    document_processed = (
-        "retriever" in st.session_state
-        and st.session_state.get("retriever") is not None
-    )
-
+    st.sidebar.subheader("💬 Chat Controls")
     col1, col2 = st.sidebar.columns(2)
     with col1:
-        st.metric("Messages", message_count)
-    with col2:
-        st.metric("Document", "✅" if document_processed else "❌")
+        if st.sidebar.button("🗑️ Clear Chat", use_container_width=True):
+            st.session_state.messages = [
+                {
+                    "role": "assistant",
+                    "content": "Chat history cleared. How can I assist you with college information?",
+                    "sources": [],
+                }
+            ]
+            st.rerun()
 
-    if document_processed:
-        st.sidebar.success("📄  Document ready for chat")
-    else:
-        st.sidebar.info("📄  No Document processed yet")
+    if doc_loaded:
+        if st.sidebar.button("🔄 Unload Document", use_container_width=True):
+            st.session_state.retriever = None
+            st.session_state.document_name = None
+            st.success("Document unloaded!")
+            time.sleep(0.5)
+            st.rerun()
 
-    st.sidebar.info(f"**Current Model:**\n{selected_model}")
-
-    if message_count > 0:
-        st.sidebar.divider()
-        chat_text = ""
-        for msg in st.session_state.messages[1:]:  # Skip system message
-            role = "User" if isinstance(msg, HumanMessage) else "Assistant"
-            chat_text += f"{role}: {msg.content}\n\n"
-
+    # Download chat transcript
+    if len(st.session_state.messages) > 1:
+        transcript = ""
+        for msg in st.session_state.messages:
+            role = "Student" if msg["role"] == "user" else "Assistant"
+            transcript += f"[{role}]: {msg['content']}\n\n"
         st.sidebar.download_button(
-            "📥 Download Chat",
-            chat_text,
-            f"chat_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
-            "text/plain",
+            "📥 Export Chat Transcript",
+            transcript,
+            file_name=f"college_faq_chat_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+            mime="text/plain",
             use_container_width=True,
-            help="Download your conversation history",
         )
 
-    # Main interface
-    uploaded_file = st.file_uploader(
-        "📁 Upload your document",
-        type=["pdf", "txt"],
-        help="Upload a PDF or text file to chat with",
+    return selected_model, st.session_state.get("api_key")
+
+
+# ---------------------------------------------------------------------------
+# Document Ingestion & RAG Indexing Pipeline
+# ---------------------------------------------------------------------------
+def process_document_to_retriever(file_path: str, doc_display_name: str, api_key: str):
+    """
+    RAG Pipeline Core:
+    1. Document Loading (PDF / TXT)
+    2. Recursive Text Chunking
+    3. Gemini Vector Embeddings
+    4. FAISS Vector Store Indexing
+    5. Retriever Creation
+    """
+    if file_path.endswith(".pdf"):
+        loader = PyPDFLoader(file_path)
+    else:
+        loader = TextLoader(file_path, encoding="utf-8")
+
+    documents = loader.load()
+
+    # Tag document metadata with friendly display name for source attribution
+    for doc in documents:
+        doc.metadata["display_name"] = doc_display_name
+
+    # Step 2: Text Chunking
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=CHUNK_SIZE,
+        chunk_overlap=CHUNK_OVERLAP,
+    )
+    chunks = text_splitter.split_documents(documents)
+
+    # Step 3 & 4: Embeddings and FAISS Vector Store
+    embeddings = GoogleGenerativeAIEmbeddings(
+        model=EMBEDDING_MODEL,
+        google_api_key=api_key,
+    )
+    vector_store = FAISS.from_documents(chunks, embeddings)
+
+    # Step 5: Similarity Retriever
+    retriever = vector_store.as_retriever(
+        search_type="similarity",
+        search_kwargs={"k": RETRIEVER_K},
     )
 
-    return selected_model, uploaded_file, st.session_state.get("api_key")
+    st.session_state.retriever = retriever
+    st.session_state.document_name = doc_display_name
 
 
-def handle_document_processing(uploaded_file=""):
-    if st.button("🚀 Process Document", type="primary"):
-        user_api_key = st.session_state.get("api_key", "") or os.getenv("GOOGLE_API_KEY", "")
-        if not user_api_key:
-            st.error("❌ Please enter your Google Gemini API key in the sidebar first!")
-            st.info("💡 You need a valid API key to process documents and chat")
-            return
-        elif not uploaded_file:
-            st.error("❌ Please upload a document first!")
-            return
-        else:
-            with st.spinner("Processing document..."):
-                progress_bar = st.progress(0)
-                status_text = st.empty()
+def render_document_section(user_api_key: str):
+    """Renders the document management section (upload or pre-loaded handbook)."""
+    with st.expander("📁 Manage College Documents (Upload PDF/TXT or Load Sample)", expanded=(st.session_state.retriever is None)):
+        tab1, tab2 = st.tabs(["📤 Upload College Document", "🏫 Load Sample College Handbook"])
 
-                try:
-
-                    # Step 1: Extract transcript
-                    status_text.text("🔄 Step 1/4: Saving document...")
-                    progress_bar.progress(25)
-
-                    with tempfile.NamedTemporaryFile(
-                        delete=False, suffix=f".{uploaded_file.name.split('.')[-1]}"
-                    ) as tmp_file:
-                        tmp_file.write(uploaded_file.getvalue())
-                        tmp_file_path = tmp_file.name
-
-                    status_text.text("📄 Step 2/4: Loading document...")
-                    progress_bar.progress(50)
-
-                    if uploaded_file.name.endswith(".pdf"):
-                        loader = PyPDFLoader(tmp_file_path)
-                    else:  # txt file
-                        loader = TextLoader(tmp_file_path)
-
-                    documents = loader.load()
-
-                    status_text.text("✂️ Step 3/4: Splitting into chunks...")
-                    progress_bar.progress(75)
-
-                    splitter = RecursiveCharacterTextSplitter(
-                        chunk_size=CHUNK_SIZE,
-                        chunk_overlap=CHUNK_OVERLAP,
-                    )
-                    chunks = splitter.split_documents(documents)
-
-                    status_text.text("🧠 Step 4/4: Creating embeddings...")
-                    progress_bar.progress(100)
-                    embeddings = GoogleGenerativeAIEmbeddings(
-                        model=EMBEDDING_MODEL,
-                        google_api_key=user_api_key,
-                    )
-                    vector_store = FAISS.from_documents(chunks, embeddings)
-                    retriever = vector_store.as_retriever(
-                        search_type="similarity", search_kwargs={"k": RETRIEVER_K}
-                    )
-
-                    st.session_state["retriever"] = retriever
-                    st.session_state["document_name"] = uploaded_file.name
-
-                    os.unlink(tmp_file_path)
-                    progress_bar.empty()
-                    status_text.empty()
-
-                    st.success("✅ Document processed! Ready for questions.")
-                    time.sleep(2)
-                    st.rerun()
-
-                except Exception as e:
-                    st.error(f"❌ Error processing document: {str(e)}")
-
-
-def format_docs(retrieved_docs):
-    context_text = "\n\n".join(doc.page_content for doc in retrieved_docs)
-    return context_text
-
-
-@st.cache_resource()
-def get_chat_model(model_name: str, api_key_keyed_for_cache: str | None):
-    return ChatGoogleGenerativeAI(
-        model=model_name,
-        google_api_key=api_key_keyed_for_cache,
-    )
-
-
-def display_chat_messages():
-    for message in st.session_state.messages[1:]:
-        if isinstance(message, HumanMessage):
-            with st.chat_message("user"):
-                st.write(message.content)
-
-        if isinstance(message, AIMessage):
-            with st.chat_message("assistant"):
-                st.write(message.content)
-
-
-def handle_user_input(chat_model, input_disabled: bool = False):
-    if prompt := st.chat_input(
-        "Ask a question about the document...", disabled=input_disabled
-    ):
-        if not prompt.strip():
-            st.warning("Please type a message before sending!")
-            return
-
-        st.session_state.messages.append(HumanMessage(content=prompt))
-
-        prompt_template = PromptTemplate(
-            template="""Based on this document content:
-
-            {context}
-
-            Question: {question}""",
-            input_variables=["context", "question"],
-        )
-
-        with st.chat_message("user"):
-            st.write(prompt)
-
-        retriever = st.session_state.get("retriever")
-        if not retriever:
-            with st.chat_message("assistant"):
-                error_msg = (
-                    "❌ Please process a document first to enable question answering."
-                )
-                st.error(error_msg)
-                st.session_state.messages.append(AIMessage(content=error_msg))
-            return
-        with st.chat_message("assistant"):
-            with st.spinner("🤔 Analyzing document content..."):
-                try:
-                    retrieved_docs = retriever.invoke(prompt)
-                    if not retrieved_docs:
-                        no_context_msg = "🤷‍♂️ I couldn't find relevant information in the document for your question."
-                        st.warning(no_context_msg)
-                        st.session_state.messages.append(
-                            AIMessage(content=no_context_msg)
-                        )
+        with tab1:
+            uploaded_file = st.file_uploader(
+                "Upload official college PDF or TXT file (Prospectus, Syllabus, Rules, etc.)",
+                type=["pdf", "txt"],
+                help="Supported formats: PDF, TXT",
+            )
+            if uploaded_file:
+                st.caption(f"Selected file: **{uploaded_file.name}** ({uploaded_file.size:,} bytes)")
+                if st.button("🚀 Process & Index Uploaded Document", type="primary", use_container_width=True):
+                    if not user_api_key:
+                        st.error("❌ Please provide a Google Gemini API Key in the sidebar first!")
                         return
-                    parallel_chain = RunnableParallel(
-                        {
-                            "context": retriever | RunnableLambda(format_docs),
-                            "question": RunnablePassthrough(),
-                        }
-                    )
-                    parser = StrOutputParser()
-                    main_chain = parallel_chain | prompt_template | chat_model | parser
 
-                    message_placeholder = st.empty()
-                    full_response = ""
+                    with st.spinner("Processing document through RAG pipeline (Loading → Chunking → Embedding → FAISS)..."):
+                        suffix = f".{uploaded_file.name.split('.')[-1]}"
+                        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp_file:
+                            tmp_file.write(uploaded_file.getvalue())
+                            tmp_path = tmp_file.name
 
-                    # Stream the response using stream method (synchronous)
-                    for chunk in main_chain.stream(prompt):
-                        if chunk and chunk.strip():
-                            full_response += chunk
-                            message_placeholder.markdown(
-                                full_response + "▌"
-                            )  # Cursor indicator
+                        try:
+                            process_document_to_retriever(tmp_path, uploaded_file.name, user_api_key)
+                            os.unlink(tmp_path)
+                            st.success(f"✅ Successfully indexed **{uploaded_file.name}**! Ready for questions.")
+                            time.sleep(1)
+                            st.rerun()
+                        except Exception as e:
+                            if os.path.exists(tmp_path):
+                                os.unlink(tmp_path)
+                            st.error(f"❌ Error processing document: {str(e)}")
 
-                    # Remove cursor and display final response
-                    if full_response and full_response.strip():
-                        message_placeholder.markdown(full_response)
-                        st.session_state.messages.append(
-                            AIMessage(content=full_response)
+        with tab2:
+            st.markdown(
+                "Quickly test the chatbot using the included **Apex Institute of Technology & Science (AITS) Official Student Handbook & FAQ (2025-2026)**."
+            )
+            st.markdown(
+                "Covers: Admissions, B.Tech/BCA/MBA/MCA courses, fee structures, eligibility cutoffs, exam dates, 92% placement statistics, timings, and campus facilities."
+            )
+            if st.button("📚 Load Preloaded College Handbook", use_container_width=True):
+                if not user_api_key:
+                    st.error("❌ Please provide a Google Gemini API Key in the sidebar first!")
+                    return
+                if not os.path.exists(DEFAULT_SAMPLE_DOC):
+                    st.error(f"❌ Sample file not found at {DEFAULT_SAMPLE_DOC}")
+                    return
+
+                with st.spinner("Indexing preloaded College Handbook with FAISS..."):
+                    try:
+                        process_document_to_retriever(
+                            DEFAULT_SAMPLE_DOC,
+                            "college_faq_handbook.txt",
+                            user_api_key,
                         )
-                    else:
-                        error_msg = (
-                            "🚫 No response received. Please try a different model."
-                        )
-                        message_placeholder.error(error_msg)
-                        st.session_state.messages.append(AIMessage(content=error_msg))
-
-                    # Rerun to refresh the UI after streaming
-                    st.rerun()
-
-                except Exception as e:
-                    error_message = str(e).lower()
-                    if "not found" in error_message or "invalid" in error_message:
-                        error_msg = "❌ This model is not available. Please select a different model."
-                    elif "quota" in error_message or "limit" in error_message:
-                        error_msg = "📊 API quota exceeded. Please try again later or use a different model."
-                    elif "timeout" in error_message:
-                        error_msg = (
-                            "⏱️ Request timed out. Try a different model or try again."
-                        )
-                    else:
-                        error_msg = f"❌ An error occurred. Try selecting different model or check your api key:("
-
-                    st.error(error_msg)
-                    st.session_state.messages.append(AIMessage(content=error_msg))
-            # st.rerun()
+                        st.success("✅ Preloaded College Handbook indexed successfully!")
+                        time.sleep(1)
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"❌ Error indexing handbook: {str(e)}")
 
 
-init_session_state()
-configure_page()
-center_app()
-selected_model, uploaded_file, user_api_key = handle_sidebar()
-if uploaded_file:
-    st.success(f"✅ File uploaded: {uploaded_file.name}")
-    st.info(f"📊 Size: {uploaded_file.size} bytes")
-
-handle_document_processing(uploaded_file)
-chat_model = None
-if user_api_key:
-    # Ensure env var is set for the underlying client
-    os.environ["GOOGLE_API_KEY"] = user_api_key
-    chat_model = get_chat_model(selected_model, user_api_key)
+# ---------------------------------------------------------------------------
+# Suggested Questions Component
+# ---------------------------------------------------------------------------
+def render_suggested_questions():
+    """Displays one-click clickable questions for students."""
+    st.markdown("##### 💡 Suggested Questions")
+    cols = st.columns(2)
+    for idx, question in enumerate(SUGGESTED_QUESTIONS):
+        col = cols[idx % 2]
+        if col.button(f"❓ {question}", key=f"sug_btn_{idx}", use_container_width=True):
+            st.session_state.pending_prompt = question
+            st.rerun()
 
 
-display_chat_messages()
+# ---------------------------------------------------------------------------
+# Chat Display & Answering Engine
+# ---------------------------------------------------------------------------
+def display_chat_messages():
+    """Renders all conversation messages with student/assistant avatars and citations."""
+    for message in st.session_state.messages:
+        role = message["role"]
+        avatar = "🧑‍🎓" if role == "user" else "🎓"
+        with st.chat_message(role, avatar=avatar):
+            st.markdown(message["content"])
 
-if chat_model is None:
-    st.warning(
-        "Please enter your Google Gemini API key in the sidebar to start chatting."
-    )
+            # Render document citation & excerpts if available
+            sources = message.get("sources", [])
+            if sources:
+                with st.expander("📄 Referenced Document Sources", expanded=False):
+                    for src in sources:
+                        page_info = f" ({src['page']})" if src.get("page") else ""
+                        st.markdown(f"• **Source:** `{src['filename']}`{page_info}")
+                        st.caption(f"Excerpt: *\"{src['excerpt']}\"*")
 
-handle_user_input(chat_model, input_disabled=(chat_model is None))
+
+def handle_question(prompt_text: str, model_name: str, user_api_key: str):
+    """
+    Executes the Question-Answering RAG flow:
+    1. Append student question to UI.
+    2. Query FAISS retriever for similarity chunks.
+    3. Format context and prompt.
+    4. Call Gemini LLM and stream response live.
+    5. Append assistant answer with source citations.
+    """
+    # 1. Append student message
+    st.session_state.messages.append({
+        "role": "user",
+        "content": prompt_text,
+        "sources": [],
+    })
+    with st.chat_message("user", avatar="🧑‍🎓"):
+        st.markdown(prompt_text)
+
+    # Validate retriever
+    retriever = st.session_state.get("retriever")
+    if not retriever:
+        no_doc_msg = (
+            "⚠️ **No college document loaded!**\n\n"
+            "Please upload a document or click **'Load Sample College Handbook'** above "
+            "so I can search for accurate answers."
+        )
+        with st.chat_message("assistant", avatar="🎓"):
+            st.warning(no_doc_msg)
+        st.session_state.messages.append({
+            "role": "assistant",
+            "content": no_doc_msg,
+            "sources": [],
+        })
+        return
+
+    # 2. Retrieve relevant chunks
+    with st.chat_message("assistant", avatar="🎓"):
+        with st.spinner("🔍 Searching college documents..."):
+            try:
+                retrieved_docs = retriever.invoke(prompt_text)
+            except Exception as e:
+                st.error(f"❌ Error during retrieval: {str(e)}")
+                return
+
+        if not retrieved_docs:
+            fallback_reply = "I couldn't find this information in the available college documents."
+            st.markdown(fallback_reply)
+            st.session_state.messages.append({
+                "role": "assistant",
+                "content": fallback_reply,
+                "sources": [],
+            })
+            return
+
+        # Prepare context and extract source citations
+        context_parts = []
+        sources = []
+        doc_display = st.session_state.get("document_name", "College Document")
+
+        for d in retrieved_docs:
+            context_parts.append(d.page_content)
+            page_num = d.metadata.get("page")
+            page_label = f"Page {page_num + 1}" if page_num is not None else None
+            filename = d.metadata.get("display_name", doc_display)
+            sources.append({
+                "filename": filename,
+                "page": page_label,
+                "excerpt": d.page_content.strip()[:240] + ("..." if len(d.page_content.strip()) > 240 else ""),
+            })
+
+        formatted_context = "\n\n---\n\n".join(context_parts)
+
+        # 3. Build LangChain Runnable Chain
+        llm = ChatGoogleGenerativeAI(
+            model=model_name,
+            google_api_key=user_api_key,
+            temperature=0.2,  # Low temperature for strict factual grounding
+        )
+        chain = COLLEGE_QA_PROMPT | llm | StrOutputParser()
+
+        # 4. Stream response
+        placeholder = st.empty()
+        full_response = ""
+        try:
+            for chunk in chain.stream({"context": formatted_context, "question": prompt_text}):
+                full_response += chunk
+                placeholder.markdown(full_response + "▌")
+            placeholder.markdown(full_response)
+        except Exception as e:
+            full_response = f"❌ Error communicating with Gemini API: {str(e)}"
+            placeholder.error(full_response)
+
+        # 5. Show source citations
+        if sources:
+            with st.expander("📄 Referenced Document Sources", expanded=False):
+                for src in sources:
+                    page_info = f" ({src['page']})" if src.get("page") else ""
+                    st.markdown(f"• **Source:** `{src['filename']}`{page_info}")
+                    st.caption(f"Excerpt: *\"{src['excerpt']}\"*")
+
+        # Save to chat history
+        st.session_state.messages.append({
+            "role": "assistant",
+            "content": full_response,
+            "sources": sources,
+        })
+
+
+# ---------------------------------------------------------------------------
+# Main Application Flow
+# ---------------------------------------------------------------------------
+def main():
+    init_session_state()
+    configure_page()
+    selected_model, user_api_key = handle_sidebar()
+
+    # Document management section
+    render_document_section(user_api_key)
+
+    st.divider()
+
+    # Display suggested questions
+    render_suggested_questions()
+
+    st.divider()
+
+    # Display chat conversation
+    display_chat_messages()
+
+    # Determine input prompt (either from button click or chat input)
+    prompt = None
+    if st.session_state.get("pending_prompt"):
+        prompt = st.session_state.pending_prompt
+        st.session_state.pending_prompt = None
+    else:
+        chat_box = st.chat_input("Ask a question about the college (admissions, fees, courses, placements...)...")
+        if chat_box and chat_box.strip():
+            prompt = chat_box.strip()
+
+    if prompt:
+        handle_question(prompt, selected_model, user_api_key)
+
+
+if __name__ == "__main__":
+    main()

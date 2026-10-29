@@ -1,0 +1,140 @@
+================================================================================
+                    APEX INSTITUTE OF TECHNOLOGY & SCIENCE (AITS)
+                    OFFICIAL STUDENT HANDBOOK & FREQUENTLY ASKED QUESTIONS (FAQ)
+                    ACADEMIC YEAR 2025 - 2026
+================================================================================
+
+1. GENERAL INFORMATION & TIMINGS
+--------------------------------------------------------------------------------
+- College Working Hours: Monday to Friday, 9:00 AM to 4:30 PM.
+- Central Library Timings: 8:30 AM to 8:00 PM (Monday to Saturday). During exam periods, the reading hall remains open until 10:00 PM.
+- Computer Labs & Research Centers: Open from 9:00 AM to 5:30 PM on all instructional days.
+- Administrative & Accounts Office: 9:30 AM to 4:00 PM (Monday to Friday).
+- Weekend Schedule: 1st and 3rd Saturdays are working for co-curricular club activities (9:30 AM to 1:00 PM). Sundays and public holidays are closed.
+
+2. COURSES OFFERED & DURATION
+--------------------------------------------------------------------------------
+Undergraduate (UG) Programs:
+- B.Tech in Computer Science and Engineering (CSE) - 4 Years (8 Semesters)
+- B.Tech in Artificial Intelligence & Machine Learning (AI & ML) - 4 Years (8 Semesters)
+- B.Tech in Electronics & Communication Engineering (ECE) - 4 Years (8 Semesters)
+- B.Tech in Mechanical Engineering - 4 Years (8 Semesters)
+- Bachelor of Computer Applications (BCA) - 3 Years (6 Semesters)
+
+Postgraduate (PG) Programs:
+- Master of Technology (M.Tech) in Computer Science - 2 Years (4 Semesters)
+- Master of Business Administration (MBA) - 2 Years (4 Semesters)
+  Specializations: Finance, Marketing, Human Resources, Business Analytics
+- Master of Computer Applications (MCA) - 2 Years (4 Semesters)
+
+3. ELIGIBILITY CRITERIA FOR ADMISSIONS
+--------------------------------------------------------------------------------
+- B.Tech Programs:
+  Passed 10+2 (or equivalent) examination with Physics and Mathematics as compulsory subjects, along with Chemistry/Computer Science/Biology. Minimum aggregate of 60% marks (55% for reserved category candidates) in 10+2. A valid JEE Main or State CET rank is required.
+
+- BCA Program:
+  Passed 10+2 examination with Mathematics or Computer Science/Information Practices as a subject, securing at least 50% marks in aggregate.
+
+- M.Tech Program:
+  B.E. / B.Tech degree in relevant engineering branch with a minimum of 60% aggregate or CGPA of 6.5 on a 10-point scale. GATE-qualified applicants receive first preference and monthly stipend.
+
+- MBA Program:
+  Bachelor's degree in any discipline from a recognized university with at least 50% aggregate marks (45% for reserved categories). Valid score in CAT, MAT, XAT, or CMAT.
+
+- MCA Program:
+  BCA or B.Sc in Computer Science / IT / Mathematics with at least 50% marks in aggregate.
+
+4. ADMISSION PROCESS & STEPS
+--------------------------------------------------------------------------------
+Step 1 - Online Application:
+Visit the official college portal (www.college-admissions.edu) and fill out the online admission inquiry form. Submit application fee of Rs. 1,000 online.
+
+Step 2 - Merit List & Counselling:
+Merit lists are published based on entrance examination scores and qualifying marks. Shortlisted candidates are invited for offline or virtual counselling rounds.
+
+Step 3 - Document Verification:
+Candidates must report to the Admissions Cell with original and self-attested copies of all mandatory certificates.
+
+Step 4 - Seat Allotment & Provisional Admission:
+Upon successful verification, the candidate chooses their branch based on availability and rank. A provisional seat allotment letter is issued.
+
+Step 5 - Fee Payment:
+Deposit the first-semester tuition fee within 5 working days of seat allotment to confirm the admission.
+
+5. MANDATORY DOCUMENTS REQUIRED FOR ADMISSION
+--------------------------------------------------------------------------------
+Applicants must submit 2 sets of self-attested photocopies along with original documents for verification:
+1. Class 10 (SSC) Marksheet and Passing Certificate (Proof of Date of Birth).
+2. Class 12 (HSC) Marksheet and Passing Certificate.
+3. Graduation Marksheets (all semesters) and Degree/Provisional Certificate (for PG courses).
+4. Valid Entrance Exam Scorecard (JEE Main / GATE / CAT / MAT / CET).
+5. Transfer Certificate (TC) and Character Certificate from the last attended institute.
+6. Migration Certificate (for candidates from outside state/board).
+7. Caste / Category Certificate and Income Certificate (for SC/ST/OBC/EWS candidates).
+8. Domicile Certificate (if claiming state quota).
+9. Copy of Aadhaar Card of student and parent.
+10. Five recent passport-size color photographs.
+11. Anti-ragging affidavit signed by student and parent (on Rs. 10 stamp paper or online undertaking).
+
+6. ANNUAL FEE STRUCTURE (ACADEMIC YEAR 2025-2026)
+--------------------------------------------------------------------------------
+Undergraduate Fees:
+- B.Tech (CSE, AI & ML): Rs. 1,25,000 per year (payable in two semester installments of Rs. 62,500).
+- B.Tech (ECE, Mechanical): Rs. 1,10,000 per year.
+- BCA: Rs. 75,000 per year.
+
+Postgraduate Fees:
+- M.Tech: Rs. 90,000 per year.
+- MBA: Rs. 1,40,000 per year.
+- MCA: Rs. 85,000 per year.
+
+Additional / Incidental Charges:
+- One-time Security / Caution Deposit: Rs. 10,000 (Refundable upon course completion).
+- University Registration & Examination Fee: Rs. 3,500 per semester.
+- Training & Placement Cell Fee: Rs. 5,000 per year (from 3rd year onwards).
+- Hostel Accommodation (Triple Sharing): Rs. 40,000 per year.
+- Hostel Accommodation (Twin Sharing): Rs. 55,000 per year.
+- Mess Charges (4 meals a day): Rs. 38,000 per year.
+
+Scholarships:
+- Merit Scholarship: 50% tuition fee waiver for candidates with >95% in 10+2; 25% waiver for 90-95%.
+- Sports Scholarship: Up to 50% fee concession for national and state-level sports medalists.
+
+7. EXAMINATION SCHEDULE, RULES & EVALUATION
+--------------------------------------------------------------------------------
+- Semester Structure: The academic year consists of two semesters (Odd: August to December; Even: January to May).
+- Examination Dates:
+  - Odd Semester End Exams: Typically commence in the first week of December.
+  - Even Semester End Exams: Typically commence in the second week of May.
+  - Mid-Term / Sessional Exams: Held in October (Odd semester) and March (Even semester).
+- Attendance Requirement: A minimum of 75% attendance in theory lectures and 80% in laboratory practicals is strictly mandatory to appear in end-semester examinations.
+- Evaluation Weightage:
+  - Internal Assessment: 40% (Mid-term tests, lab practical evaluations, assignments, quizzes, and attendance).
+  - End-Semester University Exam: 60%.
+- Passing Standard: Minimum 40% in each subject (internal + external combined) and overall semester grade point average (SGPA) of 5.0.
+
+8. CAMPUS PLACEMENTS & CAREER STATISTICS
+--------------------------------------------------------------------------------
+- Placement Rate: 92% of eligible registered students secured offers in the 2024-2025 placement season.
+- Highest International Package: Rs. 44.5 LPA (Offered by multinational cloud software firm).
+- Highest Domestic Package: Rs. 28.0 LPA.
+- Average Package: Rs. 8.5 LPA (CSE/IT), Rs. 6.2 LPA (Overall across all engineering streams).
+- Median Package: Rs. 7.0 LPA.
+- Top Recruiting Partners: Microsoft, Amazon, Google, TCS Digital, Infosys, Wipro, Accenture, Cognizant, L&T Technology Services, Deloitte, and Capgemini.
+- Internship Opportunities: Mandatory 8-week summer internship after the 6th semester. Over 60% of students convert internships to full-time Pre-Placement Offers (PPOs).
+
+9. CAMPUS FACILITIES & STUDENT WELFARE
+--------------------------------------------------------------------------------
+- Hostels: Separate, secure on-campus hostels for boys (500 capacity) and girls (400 capacity) with biometric access, high-speed Wi-Fi, and 24/7 CCTV surveillance.
+- Healthcare: Health Center staffed with a full-time resident physician and emergency ambulance service available 24/7.
+- Sports & Gym: Cricket ground, football turf, basketball court, indoor badminton hall, table tennis, and fully equipped gymnasium.
+- Cafeteria: Multi-cuisine hygienic cafeteria open from 8:00 AM to 9:00 PM.
+- Transport: Fleet of 25 air-conditioned buses covering all major suburban routes.
+
+10. HELPDESK & IMPORTANT CONTACTS
+--------------------------------------------------------------------------------
+- Admission Office: admission@aits-college.edu | Phone: +91 (011) 2876-5432 / +91 98765 43210
+- Examination Controller: coe@aits-college.edu | Phone: +91 (011) 2876-5440
+- Training & Placement Cell: placements@aits-college.edu | Phone: +91 (011) 2876-5455
+- Student Grievance / Anti-Ragging Toll-Free Helpline: 1800-180-5522
+================================================================================
